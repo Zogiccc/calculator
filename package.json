@@ -1,0 +1,8 @@
+{
+  "name": "calculator",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "mathjs": "^12.0.0"
+  }
+}

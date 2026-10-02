@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>计算器</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: radial-gradient(circle at 20% 0%, #1e293b 0%, #0b0f17 55%);
+      color: #e6e8ee;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+    }
+
+    .calculator {
+      width: 100%;
+      max-width: 380px;
+      padding: 20px;
+      background: #131720;
+      border: 1px solid #232a38;
+      border-radius: 20px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .calc-header h1 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .calc-header .hint {
+      margin: 0 0 16px;
+      font-size: 12px;
+      color: #7b8496;
+    }
+
+    /* ---------- 显示区 ---------- */
+    .display {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 6px;
+      min-height: 104px;
+      padding: 16px;
+      background: #0b0f17;
+      border: 1px solid #1e2533;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .expression {
+      min-height: 20px;
+      font-size: 15px;
+      line-height: 1.4;
+      color: #8b93a7;
+      text-align: right;
+      word-break: break-all;
+    }
+
+    .result {
+      min-height: 38px;
+      font-size: 30px;
+      font-weight: 600;
+      line-height: 1.2;
+      text-align: right;
+      word-break: break-all;
+      color: #e6e8ee;
+      transition: color 0.15s ease;
+    }
+
+    .result.is-ok      { color: #4ade80; }
+    .result.is-error   { font-size: 15px; font-weight: 500; color: #f87171; }
+    .result.is-loading { font-size: 18px; font-weight: 500; color: #7b8496; }
+
+    .status {
+      min-height: 16px;
+      margin: 6px 2px 12px;
+      font-size: 11px;
+      color: #6b7280;
+      text-align: right;
+    }
+
+    /* ---------- 键盘区 ---------- */
+    .keys {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .key {
+      padding: 16px 0;
+      border: 1px solid #262e3d;
+      border-radius: 12px;
+      background: #1b2130;
+      color: #e6e8ee;
+      font-size: 18px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s ease, border-color 0.12s ease,
+        transform 0.06s ease;
+    }
+
+    .key:hover  { background: #222a3b; border-color: #333d52; }
+    .key:active { transform: scale(0.97); }
+    .key:focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; }
+
+    .key-fn { font-size: 16px; color: #9aa4b8; }
+    .key-op { font-size: 20px; color: #60a5fa; }
+
+    .key-eq {
+      background: linear-gradient(180deg, #3b82f6, #2563eb);
+      border-color: #2563eb;
+      color: #fff;
+    }
+    .key-eq:hover { background: linear-gradient(180deg, #4b8ef7, #2f6fe0); }
+  </style>
+</head>
+<body>
+  <main class="calculator">
+    <header class="calc-header">
+      <h1>计算器</h1>
+      <p class="hint">输入表达式 → 后端解析计算 → 返回结果</p>
+    </header>
+
+    <section class="display">
+      <div class="expression" id="expression">0</div>
+      <div class="result" id="result"></div>
+    </section>
+
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+
+    <section class="keys" id="keys">
+      <button class="key key-fn" data-key="C">C</button>
+      <button class="key key-fn" data-key="⌫">⌫</button>
+      <button class="key key-fn" data-key="(">(</button>
+      <button class="key key-fn" data-key=")">)</button>
+
+      <button class="key" data-key="7">7</button>
+      <button class="key" data-key="8">8</button>
+      <button class="key" data-key="9">9</button>
+      <button class="key key-op" data-key="÷">÷</button>
+
+      <button class="key" data-key="4">4</button>
+      <button class="key" data-key="5">5</button>
+      <button class="key" data-key="6">6</button>
+      <button class="key key-op" data-key="×">×</button>
+
+      <button class="key" data-key="1">1</button>
+      <button class="key" data-key="2">2</button>
+      <button class="key" data-key="3">3</button>
+      <button class="key key-op" data-key="-">−</button>
+
+      <button class="key" data-key="0">0</button>
+      <button class="key" data-key=".">.</button>
+      <button class="key key-op" data-key="+">+</button>
+      <button class="key key-eq" data-key="=">=</button>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    'use strict';
+
+    /* =========================================================
+     * 配置：后端接口地址
+     * - 同源部署（Vercel rewrite / Nginx 反代）留空字符串即可
+     * - 跨域部署写完整地址，例如 'https://api.example.com'
+     * ========================================================= */
+    const API_BASE = '';
+    const ENDPOINT = API_BASE + '/api/calculate';
+
+    const OPERATORS = ['+', '-', '×', '÷'];
+
+    /* =========================================================
+     * 状态
+     * ========================================================= */
+    const state = {
+      expression: '',   // 用户正在输入的表达式（展示用，含 × ÷）
+      result: null,     // 后端返回的结果
+      error: null,      // 错误信息
+      status: '',       // 底部提示，如「已保存记录 #12」
+      loading: false,   // 请求进行中
+    };
+
+    const $expression = document.getElementById('expression');
+    const $result     = document.getElementById('result');
+    const $status     = document.getElementById('status');
+    const $keys       = document.getElementById('keys');
+
+    /* =========================================================
+     * 渲染
+     * ========================================================= */
+    function render() {
+      $expression.textContent = state.expression || '0';
+
+      if (state.loading) {
+        $result.textContent = '计算中…';
+        $result.className = 'result is-loading';
+      } else if (state.error) {
+        $result.textContent = state.error;
+        $result.className = 'result is-error';
+      } else if (state.result !== null) {
+        $result.textContent = '= ' + state.result;
+        $result.className = 'result is-ok';
+      } else {
+        $result.textContent = '';
+        $result.className = 'result';
+      }
+
+      $status.textContent = state.status;
+    }
+
+    /* =========================================================
+     * 输入分发
+     * ========================================================= */
+    function press(key) {
+      if (state.loading) return;
+
+      switch (key) {
+        case 'C':
+          state.expression = '';
+          state.result = null;
+          state.error = null;
+          state.status = '';
+          break;
+
+        case '⌫':
+          state.expression = state.expression.slice(0, -1);
+          state.result = null;
+          state.error = null;
+          state.status = '';
+          break;
+
+        case '=':
+          submit();
+          return;
+
+        default:
+          appendToken(key);
+          return;
+      }
+
+      render();
+    }
+
+    /* =========================================================
+     * 追加字符（只做「输入整理」，不做真正校验/解析）
+     * 真正的合法性校验在后端完成
+     * ========================================================= */
+    function appendToken(token) {
+      // 上一次已有结果：输入运算符 → 接着算；输入数字 → 重新开始
+      if (state.result !== null) {
+        state.expression = OPERATORS.includes(token)
+          ? String(state.result)
+          : '';
+        state.result = null;
+      }
+
+      state.error = null;
+      state.status = '';
+
+      let expr = state.expression;
+      const last = expr.slice(-1);
+
+      // 小数点：同一数字段内只能有一个
+      if (token === '.') {
+        const segment = expr.split(/[+\-×÷()]/).pop();
+        if (segment.includes('.')) return;
+        if (segment === '') token = '0.';
+      }
+
+      // 运算符
+      if (OPERATORS.includes(token)) {
+        if (expr === '') {
+          // 开头只允许负号
+          if (token !== '-') return;
+        } else if (OPERATORS.includes(last)) {
+          // 连续运算符 → 替换上一个
+          state.expression = expr.slice(0, -1) + token;
+          render();
+          return;
+        } else if (last === '(') {
+          if (token !== '-') return;
+        }
+      }
+
+      // 右括号：必须有多余的左括号，且前面不能是运算符
+      if (token === ')') {
+        const open  = (expr.match(/\(/g) || []).length;
+        const close = (expr.match(/\)/g) || []).length;
+        if (open <= close) return;
+        if (/[+\-×÷(]$/.test(expr)) return;
+      }
+
+      // 左括号：前面是数字/右括号时自动补乘号
+      if (token === '(' && /[0-9.)]$/.test(expr)) {
+        expr += '×';
+      }
+
+      state.expression = expr + token;
+      render();
+    }
+
+    /* =========================================================
+     * 前端只做「明显不完整」的拦截，避免无谓请求
+     * ========================================================= */
+    function isObviouslyIncomplete(expr) {
+      const open  = (expr.match(/\(/g) || []).length;
+      const close = (expr.match(/\)/g) || []).length;
+      if (open !== close) return true;
+      if (/[+\-×÷(]$/.test(expr)) return true;
+      return false;
+    }
+
+    // 展示用的 × ÷ → 后端认识的 * /
+    function toBackendExpression(expr) {
+      return expr.replace(/×/g, '*').replace(/÷/g, '/');
+    }
+
+    /* =========================================================
+     * 提交给后端
+     * 流程：前端发送表达式 → 后端校验/解析/计算/存记录 → 返回结果
+     * ========================================================= */
+    async function submit() {
+      const expr = state.expression.trim();
+      if (!expr || state.loading) return;
+
+      if (isObviouslyIncomplete(expr)) {
+        state.error = '表达式不完整，请检查括号或末尾运算符';
+        state.status = '';
+        render();
+        return;
+      }
+
+      state.loading = true;
+      state.error = null;
+      state.status = '';
+      render();
+
+      try {
+        const response = await fetch(ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            expression: toBackendExpression(expr),
+          }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            (data && (data.error || data.message)) ||
+            ('服务器返回 ' + response.status)
+          );
+        }
+
+        if (!data || data.success === false) {
+          throw new Error((data && data.error) || '计算失败');
+        }
+
+        state.result = data.result;
+        state.status = data.recordId
+          ? '已保存记录 #' + data.recordId
+          : '计算完成';
+      } catch (err) {
+        state.error =
+          err instanceof TypeError
+            ? '无法连接服务器，请检查网络或接口地址'
+            : (err.message || '未知错误');
+      } finally {
+        state.loading = false;
+        render();
+      }
+    }
+
+    /* =========================================================
+     * 事件绑定
+     * ========================================================= */
+    $keys.addEventListener('click', function (event) {
+      const button = event.target.closest('button[data-key]');
+      if (!button) return;
+      press(button.dataset.key);
+    });
+
+    document.addEventListener('keydown', function (event) {
+      const map = {
+        '*': '×',
+        '/': '÷',
+        'x': '×',
+        'X': '×',
+        'Enter': '=',
+        '=': '=',
+        'Backspace': '⌫',
+        'Escape': 'C',
+        'Delete': 'C',
+      };
+
+      let key = event.key;
+
+      if (/^[0-9]$/.test(key) || ['+', '-', '(', ')', '.'].includes(key)) {
+        // 原样使用
+      } else if (key in map) {
+        key = map[key];
+      } else {
+        return;
+      }
+
+      event.preventDefault();
+      press(key);
+    });
+
+    /* 首次渲染 */
+    render();
+  })();
+  </script>
+</body>
+</html>
