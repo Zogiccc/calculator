@@ -1,5 +1,5 @@
 // api/calculate.js
-const math = require('mathjs');
+const math = require('mathjs')({ trigUnit: 'deg' });
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
