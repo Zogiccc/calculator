@@ -525,19 +525,19 @@
     /* =========================================================
      * 删除单条历史记录（DELETE）
      * ========================================================= */
-    async function deleteHistoryItem(id) {
+        async function deleteHistoryItem(id) {
       if (!id) return;
       try {
         const response = await fetch(`${ENDPOINT}?id=${id}`, { method: 'DELETE' });
         const data = await response.json();
         
-        if (data.success) {
-          loadHistory(); // 删除成功，重新加载列表
-        } else {
-          alert('删除失败: ' + (data.error || '未知错误'));
+        if (data.success) { 
+          loadHistory(); // 删除成功，刷新列表
+        } else { 
+          alert('删除失败: ' + (data.error || '未知错误')); 
         }
-      } catch (err) {
-        alert('无法连接服务器，删除失败');
+      } catch (err) { 
+        alert('无法连接服务器，删除失败'); 
       }
     }
 
