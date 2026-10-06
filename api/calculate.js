@@ -1,5 +1,8 @@
 // api/calculate.js
-const math = require('mathjs')({ trigUnit: 'deg' });
+const math = require('mathjs');
+// 配置 mathjs 使用角度制作为三角函数默认单位
+math.config({ trigUnit: 'deg' });
+
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
